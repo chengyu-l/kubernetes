@@ -1362,7 +1362,10 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	go wait.Until(kl.podKiller, 1*time.Second, wait.NeverStop)
 
 	// Start component sync loops.
+	// 监听任务状态变化，并采用两种方式更新API Server端的Pod状态，分为：实时排队处理（队列长度默认为1000）和定期批量处理（默认每10秒一次）
 	kl.statusManager.Start()
+
+	// Pod 探测 readiness/liveness/startup
 	kl.probeManager.Start()
 
 	// Start syncing RuntimeClasses if enabled.
@@ -1634,6 +1637,7 @@ func (kl *Kubelet) syncPod(o syncPodOptions) error {
 // Get pods which should be resynchronized. Currently, the following pod should be resynchronized:
 //   * pod whose work is ready.
 //   * internal modules that request sync of a pod.
+// 与Kubernetes Job相关，获取Job创建的Pod，并检查所有Pod是否超过过期时间，返回所有已经过期的Pod
 func (kl *Kubelet) getPodsToSync() []*v1.Pod {
 	allPods := kl.podManager.GetPods()
 	podUIDs := kl.workQueue.GetWork()
@@ -1648,6 +1652,8 @@ func (kl *Kubelet) getPodsToSync() []*v1.Pod {
 			podsToSync = append(podsToSync, pod)
 			continue
 		}
+
+		// 重新同步并获取Pod
 		for _, podSyncLoopHandler := range kl.PodSyncLoopHandlers {
 			if podSyncLoopHandler.ShouldSync(pod) {
 				podsToSync = append(podsToSync, pod)
@@ -1794,13 +1800,14 @@ func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHand
 
 // syncLoopIteration reads from various channels and dispatches pods to the
 // given handler.
+// syncLoopIteration从各种渠道读取数据，并将pod分配给给定的处理程序。
 //
 // Arguments:
-// 1.  configCh:       a channel to read config events from
-// 2.  handler:        the SyncHandler to dispatch pods to
-// 3.  syncCh:         a channel to read periodic sync events from
-// 4.  housekeepingCh: a channel to read housekeeping events from
-// 5.  plegCh:         a channel to read PLEG updates from
+// 1.  configCh:       a channel to read config events from  从中读取配置事件的通道
+// 2.  handler:        the SyncHandler to dispatch pods to  用于将Pod调度到的SyncHandler
+// 3.  syncCh:         a channel to read periodic sync events from  从中读取定期同步事件的通道
+// 4.  housekeepingCh: a channel to read housekeeping events from 从中读取内部事件的通道
+// 5.  plegCh:         a channel to read PLEG updates from   从中读取PLEG更新的通道
 //
 // Events are also read from the kubelet liveness manager's update channel.
 //
@@ -1819,11 +1826,16 @@ func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHand
 //
 // * configCh: dispatch the pods for the config change to the appropriate
 //             handler callback for the event type
+// 将配置更改的pod调度到事件类型的相应处理程序回调
 // * plegCh: update the runtime cache; sync pod
+// 更新运行时缓存；同步Pod
 // * syncCh: sync all pods waiting for sync
+// 同步所有等待同步的Pod
 // * housekeepingCh: trigger cleanup of pods
+// 触发Pod的清理
 // * liveness manager: sync pods that have failed or in which one or more
 //                     containers have failed liveness checks
+// 同步失败的Pod，或其中一个或多个容器的活动检查失败的容器
 func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handler SyncHandler,
 	syncCh <-chan time.Time, housekeepingCh <-chan time.Time, plegCh <-chan *pleg.PodLifecycleEvent) bool {
 	select {
@@ -1897,6 +1909,7 @@ func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handle
 		}
 	case <-syncCh:
 		// Sync pods waiting for sync
+		// 与Kubernetes Job相关，获取Job创建的Pod，并检查所有Pod是否超过过期时间，返回所有已经过期的Pod
 		podsToSync := kl.getPodsToSync()
 		if len(podsToSync) == 0 {
 			break

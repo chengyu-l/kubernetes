@@ -46,6 +46,17 @@ import (
 // guarantee that kubelet can handle missing container events, it is
 // recommended to set the relist period short and have an auxiliary, longer
 // periodic sync in kubelet as the safety net.
+/**
+GenericPLEG是一个非常简单通用的PLEG（PodLifecycleEventGenerator），它只依赖于周期性的列表来
+发现容器的变化。它应该被用作容器运行时的临时替换，但还不支持正确的事件生成器。
+//
+注意，GenericPLEG假设容器不会在一个重新列表（relist）周期内被创建、终止和垃圾收集。如果发生此类事件，
+GenenricPLEG将错过有关此容器的所有事件。如果 relist 失败，窗口可能会变长。注意，这种假设并非
+唯一的——许多kubelet内部组件依赖于作为墓碑的终止容器来记账。垃圾收集器的实现是为了处理这种情况。
+但是，为了确保kubelet能够处理丢失的容器事件，建议将 relist 周期设置为较短，并在kubelet中有一个
+辅助的较长周期同步作为安全网。
+ */
+// PodLifecycleEventGenerator 周期通过cri接口遍历所有Pod和container，并上报状态的event
 type GenericPLEG struct {
 	// The period for relisting.
 	relistPeriod time.Duration
@@ -127,7 +138,13 @@ func (g *GenericPLEG) Watch() chan *PodLifecycleEvent {
 }
 
 // Start spawns a goroutine to relist periodically.
+// PodLifecycleEventGenerator 周期通过cri接口遍历所有Pod和container，并上报状态的event
 func (g *GenericPLEG) Start() {
+	/**
+	GenericPLEG假设容器不会在一个重新列表（relist）周期内被创建、终止和垃圾收集。如果发生此类事件，
+	GenenricPLEG将错过有关此容器的所有事件。为了确保kubelet能够处理丢失的容器事件，建议将 relist 周期设置为较短。
+	 */
+	// 默认为每一秒钟执行一次 relist。
 	go wait.Until(g.relist, g.relistPeriod, wait.NeverStop)
 }
 

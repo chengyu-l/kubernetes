@@ -26,6 +26,7 @@ import (
 
 // WorkQueue allows queuing items with a timestamp. An item is
 // considered ready to process if the timestamp has expired.
+// 工作队列允许使用时间戳对项目进行排队。如果时间戳已过期，则认为项目已准备好处理。
 type WorkQueue interface {
 	// GetWork dequeues and returns all ready items.
 	GetWork() []types.UID
@@ -47,6 +48,7 @@ func NewBasicWorkQueue(clock clock.Clock) WorkQueue {
 	return &basicWorkQueue{queue: queue, clock: clock}
 }
 
+// 从queue中获取所有已经过期的 podUID 集合，并删除queue中已经过期的podUID
 func (q *basicWorkQueue) GetWork() []types.UID {
 	q.lock.Lock()
 	defer q.lock.Unlock()

@@ -146,6 +146,7 @@ func isPodStatusByKubeletEqual(oldStatus, status *v1.PodStatus) bool {
 	return apiequality.Semantic.DeepEqual(oldCopy, status)
 }
 
+// 监听任务状态变化，并采用两种方式更新API Server端的Pod状态，分为：实时排队处理（队列长度默认为1000）和定期批量处理（默认每10秒一次）
 func (m *manager) Start() {
 	// Don't start the status manager if we don't have a client. This will happen
 	// on the master, where the kubelet is responsible for bootstrapping the pods
@@ -163,10 +164,12 @@ func (m *manager) Start() {
 		for {
 			select {
 			case syncRequest := <-m.podStatusChannel:
+				// 实时排队处理（队列长度默认为1000），每次处理一个
 				klog.V(5).Infof("Status Manager: syncing pod: %q, with status: (%d, %v) from podStatusChannel",
 					syncRequest.podUID, syncRequest.status.version, syncRequest.status.status)
 				m.syncPod(syncRequest.podUID, syncRequest.status)
 			case <-syncTicker:
+				// 定期批量处理（默认每10秒一次）
 				klog.V(5).Infof("Status Manager: syncing batch")
 				// remove any entries in the status channel since the batch will handle them
 				for i := len(m.podStatusChannel); i > 0; i-- {
@@ -452,6 +455,7 @@ func (m *manager) updateStatusInternal(pod *v1.Pod, status v1.PodStatus, forceUp
 	default:
 		// Let the periodic syncBatch handle the update if the channel is full.
 		// We can't block, since we hold the mutex lock.
+		// 如果通道已满，则让定期同步批处理更新。我们不能阻止，因为我们持有互斥锁。
 		klog.V(4).Infof("Skipping the status update for pod %q for now because the channel is full; status: %+v",
 			format.Pod(pod), status)
 		return false

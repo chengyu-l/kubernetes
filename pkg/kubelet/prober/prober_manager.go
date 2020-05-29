@@ -86,12 +86,15 @@ type manager struct {
 	statusManager status.Manager
 
 	// readinessManager manages the results of readiness probes
+	// livenessManager管理 readiness 探测的结果
 	readinessManager results.Manager
 
 	// livenessManager manages the results of liveness probes
+	// livenessManager管理 liveness 探测的结果
 	livenessManager results.Manager
 
 	// startupManager manages the results of startup probes
+	// startupManager管理 startup 探测的的结果
 	startupManager results.Manager
 
 	// prober executes the probe actions.
@@ -122,8 +125,10 @@ func NewManager(
 // Start syncing probe status. This should only be called once.
 func (m *manager) Start() {
 	// Start syncing readiness.
+	// livenessManager管理liveness探测的结果
 	go wait.Forever(m.updateReadiness, 0)
 	// Start syncing startup.
+	// startupManager管理startup探测的的结果
 	go wait.Forever(m.updateStartup, 0)
 }
 
@@ -295,6 +300,7 @@ func (m *manager) workerCount() int {
 	return len(m.workers)
 }
 
+// livenessManager管理liveness探测的结果
 func (m *manager) updateReadiness() {
 	update := <-m.readinessManager.Updates()
 
@@ -302,6 +308,7 @@ func (m *manager) updateReadiness() {
 	m.statusManager.SetContainerReadiness(update.PodUID, update.ContainerID, ready)
 }
 
+// startupManager管理startup探测的的结果
 func (m *manager) updateStartup() {
 	update := <-m.startupManager.Updates()
 
