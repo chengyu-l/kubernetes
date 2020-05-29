@@ -1371,7 +1371,10 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	}
 
 	// Start the pod lifecycle event generator.
+	// PodLifecycleEventGenerator 周期通过cri接口遍历所有Pod和container，并上报状态的event
 	kl.pleg.Start()
+
+	// 该方法为死循环，周期性的获取最新的Pod已经Pod状态的变更
 	kl.syncLoop(updates, kl)
 }
 
@@ -1740,6 +1743,11 @@ func (kl *Kubelet) canRunPod(pod *v1.Pod) lifecycle.PodAdmitResult {
 // any new change seen, will run a sync against desired state and running state. If
 // no changes are seen to the configuration, will synchronize the last known desired
 // state every sync-frequency seconds. Never returns.
+/**
+syncLoop是处理变更的主循环。 它从三个通道（文件，apiserver和http）监视变更，并将结果进行合并进行处理。
+如果发生任何变更，将针对期望状态和运行状态运行同步。 如果没有发生任何变化，则将在每个同步周期内同步上一个已知的期望状态。
+该方法为死循环，不会终止，直到kubelet进程结束。
+ */
 func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHandler) {
 	klog.Info("Starting kubelet main sync loop.")
 	// The syncTicker wakes up kubelet to checks if there are any pod workers
@@ -1764,6 +1772,7 @@ func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHand
 	}
 
 	for {
+		// 检查最近一次对ping检查（健康检查是由）做出响应的状态
 		if err := kl.runtimeState.runtimeErrors(); err != nil {
 			klog.Errorf("skipping pod synchronization - %v", err)
 			// exponential backoff
@@ -1775,6 +1784,7 @@ func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHand
 		duration = base
 
 		kl.syncLoopMonitor.Store(kl.clock.Now())
+		// 执行查询
 		if !kl.syncLoopIteration(updates, handler, syncTicker.C, housekeepingTicker.C, plegCh) {
 			break
 		}
