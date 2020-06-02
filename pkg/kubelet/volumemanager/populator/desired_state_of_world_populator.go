@@ -137,6 +137,10 @@ type processedPods struct {
 func (dswp *desiredStateOfWorldPopulator) Run(sourcesReady config.SourcesReady, stopCh <-chan struct{}) {
 	// Wait for the completion of a loop that started after sources are all ready, then set hasAddedPods accordingly
 	klog.Infof("Desired state populator starts to run")
+	// dswp.loopSleepDuration 默认100毫秒
+	// PollUntil尝试条件func，直到它返回true、错误或stopCh关闭。
+	// PollUntil总是在第一次运行“condition”之前等待间隔“条件”将始终至少调用一次。
+	// 一直尝试执行condition func，失败时，等待interval间隔时间，再次重试，直到condition func 返回true
 	wait.PollUntil(dswp.loopSleepDuration, func() (bool, error) {
 		done := sourcesReady.AllReady()
 		dswp.populatorLoop()
@@ -145,6 +149,8 @@ func (dswp *desiredStateOfWorldPopulator) Run(sourcesReady config.SourcesReady, 
 	dswp.hasAddedPodsLock.Lock()
 	dswp.hasAddedPods = true
 	dswp.hasAddedPodsLock.Unlock()
+	// dswp.loopSleepDuration 默认100毫秒
+	// 一直周期period循环
 	wait.Until(dswp.populatorLoop, dswp.loopSleepDuration, stopCh)
 }
 
@@ -167,6 +173,11 @@ func (dswp *desiredStateOfWorldPopulator) populatorLoop() {
 	// an expensive operation, therefore we limit the rate that
 	// findAndRemoveDeletedPods() is called independently of the main
 	// populator loop.
+	/**
+	findAndRemoveDeletedPods（）调用容器运行时以确定给定的pod的容器是否终止。
+	这是一个昂贵的操作，因此我们限制独立于主populator循环调用findAndRemoveDeletedPods（）的速率。
+	*/
+	// 表示自从t时刻以后过了多长时间，是一个时间段
 	if time.Since(dswp.timeOfLastGetPodStatus) < dswp.getPodStatusRetryDuration {
 		klog.V(5).Infof(
 			"Skipping findAndRemoveDeletedPods(). Not permitted until %v (getPodStatusRetryDuration %v).",
@@ -176,6 +187,9 @@ func (dswp *desiredStateOfWorldPopulator) populatorLoop() {
 		return
 	}
 
+	// findAndRemoveDeletedPods（）调用容器运行时以确定给定的pod的容器是否终止。
+	// 这是一个昂贵的操作，因此我们限制独立于主populator循环调用findAndRemoveDeletedPods（）的速率。
+	// 并从desiredStateOfWorld中移除volume信息
 	dswp.findAndRemoveDeletedPods()
 }
 
@@ -189,6 +203,7 @@ func (dswp *desiredStateOfWorldPopulator) isPodTerminated(pod *v1.Pod) bool {
 
 // Iterate through all pods and add to desired state of world if they don't
 // exist but should
+// 从podManager.GetPods()获取所有Pod， 并处理Pod和Volume
 func (dswp *desiredStateOfWorldPopulator) findAndAddNewPods() {
 	// Map unique pod name to outer volume name to MountedVolume.
 	mountedVolumesForPod := make(map[volumetypes.UniquePodName]map[string]cache.MountedVolume)
@@ -235,8 +250,11 @@ func (dswp *desiredStateOfWorldPopulator) findAndRemoveDeletedPods() {
 		// it immediately from volume manager. Instead, check the kubelet
 		// containerRuntime to verify that all containers in the pod have been
 		// terminated.
+		// 一旦Pod从 kubelet 的Pod Manager中删除，不能立即将它从volume manager删除。
+		// 应该是先调用kubelet 容器运行时（containerRuntime）来验证在Pod中的所有容器是否已经终止。
 		if !runningPodsFetched {
 			var getPodsErr error
+			// 这是一个昂贵的操作
 			runningPods, getPodsErr = dswp.kubeContainerRuntime.GetPods(false)
 			if getPodsErr != nil {
 				klog.Errorf(
@@ -290,6 +308,7 @@ func (dswp *desiredStateOfWorldPopulator) findAndRemoveDeletedPods() {
 
 // processPodVolumes processes the volumes in the given pod and adds them to the
 // desired state of the world.
+// processPodVolumes处理给定pod中的卷，并将它们添加到期望状态队列。
 func (dswp *desiredStateOfWorldPopulator) processPodVolumes(
 	pod *v1.Pod,
 	mountedVolumesForPod map[volumetypes.UniquePodName]map[string]cache.MountedVolume,
@@ -299,6 +318,7 @@ func (dswp *desiredStateOfWorldPopulator) processPodVolumes(
 	}
 
 	uniquePodName := util.GetUniquePodName(pod)
+	// 检查Pod是否已经处理过，如果处理过，直接return
 	if dswp.podPreviouslyProcessed(uniquePodName) {
 		return
 	}

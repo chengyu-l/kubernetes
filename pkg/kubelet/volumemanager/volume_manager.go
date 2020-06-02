@@ -259,10 +259,13 @@ type volumeManager struct {
 func (vm *volumeManager) Run(sourcesReady config.SourcesReady, stopCh <-chan struct{}) {
 	defer runtime.HandleCrash()
 
+	// 定期从PodManager中获取Pod，并根据Pod的Volume信息，匹配Volume插件，将volumeToMount缓存到desiredStateOfWorld中。
+	// 并且，定期检查PodManager中的所有Pod是否已经终止，如果Pod已经终止，则清空该Pod Volume在desiredStateOfWorld中的缓存。
 	go vm.desiredStateOfWorldPopulator.Run(sourcesReady, stopCh)
 	klog.V(2).Infof("The desired_state_of_world populator starts")
 
 	klog.Infof("Starting Kubelet Volume Manager")
+	// reconcilerLoopSleepPeriod = 100 * time.Millisecond
 	go vm.reconciler.Run(stopCh)
 
 	metrics.Register(vm.actualStateOfWorld, vm.desiredStateOfWorld, vm.volumePluginMgr)

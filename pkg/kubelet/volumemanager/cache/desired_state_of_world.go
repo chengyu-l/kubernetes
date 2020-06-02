@@ -154,6 +154,7 @@ type desiredStateOfWorld struct {
 
 // The volume object represents a volume that should be attached to this node,
 // and mounted to podsToMount.
+// volume对象表示应该附加到此节点并装载到podsToMount的卷。
 type volumeToMount struct {
 	// volumeName contains the unique identifier for this volume.
 	volumeName v1.UniqueVolumeName

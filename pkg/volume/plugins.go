@@ -688,6 +688,7 @@ func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
 
 // FindPluginByName fetches a plugin by name or by legacy name.  If no plugin
 // is found, returns error.
+// 根据Volume插件的名称查找Volume插件，如果找不到插件，return error
 func (pm *VolumePluginMgr) FindPluginByName(name string) (VolumePlugin, error) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
@@ -888,6 +889,9 @@ func (pm *VolumePluginMgr) FindAttachablePluginBySpec(spec *Spec) (AttachableVol
 // Unlike the other "FindPlugin" methods, this does not return error if no
 // plugin is found.  All volumes require a mounter and unmounter, but not
 // every volume will have an attacher/detacher.
+// FindAttachablePluginByName 根据Volume插件名称获取AttachableVolumePlugin
+// 不像FindPlugin方法，这个方法如果查找不到插件，不return error。
+// 所有的Volume需要mounter/unmounter，但不是所有Volume都需要attacher/detacher
 func (pm *VolumePluginMgr) FindAttachablePluginByName(name string) (AttachableVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginByName(name)
 	if err != nil {

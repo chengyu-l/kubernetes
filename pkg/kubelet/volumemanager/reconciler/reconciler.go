@@ -143,6 +143,8 @@ type reconciler struct {
 }
 
 func (rc *reconciler) Run(stopCh <-chan struct{}) {
+	// rc.loopSleepDuration = reconcilerLoopSleepPeriod = 100 * time.Millisecond
+	// 每100毫秒执行一次reconciliationLoopFunc方法
 	wait.Until(rc.reconciliationLoopFunc(), rc.loopSleepDuration, stopCh)
 }
 
@@ -153,6 +155,8 @@ func (rc *reconciler) reconciliationLoopFunc() func() {
 		// Sync the state with the reality once after all existing pods are added to the desired state from all sources.
 		// Otherwise, the reconstruct process may clean up pods' volumes that are still in use because
 		// desired state of world does not contain a complete list of pods.
+		// 所有现有的Pods从所有源（all sources）添加到期望状态，至少与实际状态进行一次同步。
+		// 否则，重建过程可能会清理Pod仍然正在使用的Volume，因为期望状态队列不包含完整的Pod列表
 		if rc.populatorHasAddedPods() && !rc.StatesHasBeenSynced() {
 			klog.Infof("Reconciler: start to sync state")
 			rc.sync()
