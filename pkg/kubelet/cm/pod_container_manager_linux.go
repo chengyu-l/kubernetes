@@ -39,15 +39,19 @@ const (
 // podContainerManagerImpl implements podContainerManager interface.
 // It is the general implementation which allows pod level container
 // management if qos Cgroup is enabled.
+// 如果启用了qos Cgroup，podContainerManagerImpl 是允许Pod级别容器管理的常规实现。
 type podContainerManagerImpl struct {
 	// qosContainersInfo hold absolute paths of the top level qos containers
 	qosContainersInfo QOSContainersInfo
 	// Stores the mounted cgroup subsystems
+	// 存储已经挂载的 cgroup 子系统
 	subsystems *CgroupSubsystems
 	// cgroupManager is the cgroup Manager Object responsible for managing all
 	// pod cgroups.
+	// 管理所有Pod cgroups
 	cgroupManager CgroupManager
 	// Maximum number of pids in a pod
+	// 一个Pod中最大的进程数
 	podPidsLimit int64
 	// enforceCPULimits controls whether cfs quota is enforced or not
 	enforceCPULimits bool

@@ -1006,6 +1006,9 @@ func (kl *Kubelet) removeOrphanedPodStatuses(pods []*v1.Pod, mirrorPods []*v1.Po
 // directories.
 // NOTE: This function is executed by the main sync loop, so it
 // should not contain any blocking calls.
+/**
+HandlePodCleanups 执行一系列清理工作，包括terminating pod workers, killing unwanted pods, and removing orphaned volumes/pod directories.
+ */
 func (kl *Kubelet) HandlePodCleanups() error {
 	// The kubelet lacks checkpointing, so we need to introspect the set of pods
 	// in the cgroup tree prior to inspecting the set of pods in our pod manager.
@@ -1019,6 +1022,7 @@ func (kl *Kubelet) HandlePodCleanups() error {
 		pcm := kl.containerManager.NewPodContainerManager()
 		cgroupPods, err = pcm.GetAllPodsFromCgroups()
 		if err != nil {
+			// 无法获取仍在cgroup挂载上的pod列表
 			return fmt.Errorf("failed to get list of pods that still exist on cgroup mounts: %v", err)
 		}
 	}
@@ -1034,6 +1038,16 @@ func (kl *Kubelet) HandlePodCleanups() error {
 	//      to the apiserver, it could still restart the terminated pod (even
 	//      though the pod was not considered terminated by the apiserver).
 	// These two conditions could be alleviated by checkpointing kubelet.
+	/**
+	一旦一个Pod到达了最终状态，无论重启测试如何，它都永远不会离开。这样Pod的状态不能再发生改变，也不需要同步它们。
+
+	TODO：此处的逻辑无法处理两种情况：
+	1.如果容器在死亡后立即被移除，则kubelet可能无法生成正确的状态，更不用说正确过滤了。
+	2.如果kubelet在将pod的终止状态写入apiserver之前重新启动，它仍然可以重新启动已终止的pod
+	（即使apiserver不认为该pod已终止）。
+
+	通过检查点kubelet可以缓解这两种情况。
+	 */
 	activePods := kl.filterOutTerminatedPods(allPods)
 
 	desiredPods := make(map[types.UID]sets.Empty)

@@ -1891,6 +1891,7 @@ func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handle
 			kl.sourcesReady.AddSource(u.Source)
 		}
 	case e := <-plegCh:
+		// PLEG (PodLifecycleEventGenerator)
 		if isSyncPodWorthy(e) {
 			// PLEG event for a pod; sync it.
 			if pod, ok := kl.podManager.GetPodByUID(e.ID); ok {
@@ -1935,9 +1936,12 @@ func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handle
 		if !kl.sourcesReady.AllReady() {
 			// If the sources aren't ready or volume manager has not yet synced the states,
 			// skip housekeeping, as we may accidentally delete pods from unready sources.
+			// 如果源尚未准备好或卷管理器尚未同步状态，请跳过housekeeping，因为我们可能会意外地从未读源中删除Pods。
 			klog.V(4).Infof("SyncLoop (housekeeping, skipped): sources aren't ready yet.")
 		} else {
 			klog.V(4).Infof("SyncLoop (housekeeping)")
+			// HandlePodCleanups 执行一系列清理工作，包括terminating pod workers, killing unwanted pods,
+			// and removing orphaned volumes/pod directories.
 			if err := handler.HandlePodCleanups(); err != nil {
 				klog.Errorf("Failed cleaning pods: %v", err)
 			}
