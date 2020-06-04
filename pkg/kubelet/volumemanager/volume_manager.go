@@ -266,6 +266,8 @@ func (vm *volumeManager) Run(sourcesReady config.SourcesReady, stopCh <-chan str
 
 	klog.Infof("Starting Kubelet Volume Manager")
 	// reconcilerLoopSleepPeriod = 100 * time.Millisecond
+	// 负责协调 desired_state_of_world 和 actual_state_of_world，主要是将desired_state_of_world中的Volume的变化，
+	// 应用到actual_state_of_world，执行mount/umount和attach/detach
 	go vm.reconciler.Run(stopCh)
 
 	metrics.Register(vm.actualStateOfWorld, vm.desiredStateOfWorld, vm.volumePluginMgr)

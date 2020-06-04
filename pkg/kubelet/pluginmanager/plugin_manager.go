@@ -67,6 +67,7 @@ func NewPluginManager(
 		asw,
 	)
 
+	// sockDir: /var/lib/kubelet/plugins_registry
 	pm := &pluginManager{
 		desiredStateOfWorldPopulator: pluginwatcher.NewWatcher(
 			sockDir,
@@ -108,6 +109,9 @@ var _ PluginManager = &pluginManager{}
 func (pm *pluginManager) Run(sourcesReady config.SourcesReady, stopCh <-chan struct{}) {
 	defer runtime.HandleCrash()
 
+	// 开始监听 /var/lib/kubelet/plugins_registry 目录下 Unix sock 文件的变化（新增和删除）。
+	// 新增 sock 文件，在 desiredStateOfWorld 中缓存 sock 文件路径。
+	// 删除 sock 文件，移除在 desiredStateOfWorld 中缓存 sock 文件路径。
 	pm.desiredStateOfWorldPopulator.Start(stopCh)
 	klog.V(2).Infof("The desired_state_of_world populator (plugin watcher) starts")
 

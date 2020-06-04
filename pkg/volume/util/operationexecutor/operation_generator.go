@@ -1326,6 +1326,15 @@ func (og *operationGenerator) GenerateVerifyControllerAttachedVolumeFunc(
 				fmt.Errorf("Node object retrieved from API server is nil"))
 		}
 
+		/**
+		  status:
+			.....
+			volumesAttached:
+			  - devicePath: csi-5c7d58696ef12337341fd4b503479c2d7dcd5b3eb2860119aa87bcc1e144f4d3
+				name: kubernetes.io/csi/csi.chubaofs.com^pvc-1a3e5481-a3d2-11ea-80b3-246e968d4b38
+			volumesInUse:
+			  - kubernetes.io/csi/csi.chubaofs.com^pvc-1a3e5481-a3d2-11ea-80b3-246e968d4b38
+		 */
 		for _, attachedVolume := range node.Status.VolumesAttached {
 			if attachedVolume.Name == volumeToMount.VolumeName {
 				addVolumeNodeErr := actualStateOfWorld.MarkVolumeAsAttached(

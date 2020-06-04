@@ -665,6 +665,7 @@ func (asw *actualStateOfWorld) PodExistsInVolume(
 	podObj, podExists := volumeObj.mountedPods[podName]
 	if podExists {
 		// if volume mount was uncertain we should keep trying to mount the volume
+		// 如果卷挂载的状态是不确定，我们应该继续尝试挂载该卷
 		if podObj.volumeMountStateForPod == operationexecutor.VolumeMountUncertain {
 			return false, volumeObj.devicePath, nil
 		}

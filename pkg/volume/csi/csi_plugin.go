@@ -916,6 +916,7 @@ func highestSupportedVersion(versions []string) (*utilversion.Version, error) {
 	if highestSupportedVersion.Major() != 1 {
 		// CSI v0.x is no longer supported as of Kubernetes v1.17 in
 		// accordance with deprecation policy set out in Kubernetes v1.13
+		// 根据Kubernetes v1.13中规定的弃用策略，从Kubernetes v1.17开始不再支持CSI v0.x
 		return nil, fmt.Errorf("highest supported version reported by driver is %v, must be v1.x", highestSupportedVersion)
 	}
 	return highestSupportedVersion, nil

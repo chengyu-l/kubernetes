@@ -150,6 +150,8 @@ func (rc *reconciler) Run(stopCh <-chan struct{}) {
 
 func (rc *reconciler) reconciliationLoopFunc() func() {
 	return func() {
+		// 负责协调 desired_state_of_world 和 actual_state_of_world，主要是将desired_state_of_world中的Volume的变化，
+		// 应用到actual_state_of_world，执行mount/umount和attach/detach
 		rc.reconcile()
 
 		// Sync the state with the reality once after all existing pods are added to the desired state from all sources.
@@ -169,15 +171,19 @@ func (rc *reconciler) reconcile() {
 	// referenced by a pod that was deleted and is now referenced by another
 	// pod is unmounted from the first pod before being mounted to the new
 	// pod.
+	// 在mount前先触发Unmounts，以便一个Volume在被挂载（mount）到新的Pod前，
 	rc.unmountVolumes()
 
 	// Next we mount required volumes. This function could also trigger
 	// attach if kubelet is responsible for attaching volumes.
 	// If underlying PVC was resized while in-use then this function also handles volume
 	// resizing.
+	// 挂载需要的Volume。如果kubelet也负责attach Volume，那么这个方法也会触发attach。
+	// 如果使用中的PVC支持调整大小，那么这个方法也处理Volume调整大小。
 	rc.mountAttachVolumes()
 
 	// Ensure devices that should be detached/unmounted are detached/unmounted.
+	// 确保需要detached/unmounted的设备得到detached/unmounted
 	rc.unmountDetachDevices()
 }
 
@@ -213,6 +219,14 @@ func (rc *reconciler) mountAttachVolumes() {
 				// Volume is not attached (or doesn't implement attacher), kubelet attach is disabled, wait
 				// for controller to finish attaching volume.
 				klog.V(5).Infof(volumeToMount.GenerateMsgDetailed("Starting operationExecutor.VerifyControllerAttachedVolume", ""))
+				/**
+				reconciler.operationExecutor = operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
+					kubeClient,
+					volumePluginMgr,
+					recorder,
+					checkNodeCapabilitiesBeforeMount,
+					blockVolumePathHandler)),
+				*/
 				err := rc.operationExecutor.VerifyControllerAttachedVolume(
 					volumeToMount.VolumeToMount,
 					rc.nodeName,

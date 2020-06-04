@@ -59,6 +59,19 @@ import (
 //
 // Some of these operations may result in calls to the API server; callers are
 // responsible for rate limiting on errors.
+
+// OperationExecutor 定义了Volume的一系列操作方法attaching, detaching, mounting, or unmounting，
+// 这些方法在NewNestedPendingOperations中被执行，可以阻止在相同的Volume上多个操作同时被触发。
+//
+// 这些操作需要满足幂等性，虽然，他们依赖Volume插件的具体实现。
+//
+// 一旦操作成功，actualStateOfWorld 将会获得更新，表明Volume是attached/detached/mounted/unmounted。
+//
+// OperationExecutor 在遇到某些情况可能会失败，例如，相同UniqueVolumeName的操作正处在pending状态。
+//
+// 一旦operation开始，由于operation是异步执行，因此仅记录错误日志，并终止goroutine，而无需更新actualStateOfWorld。
+//
+// 其中一些操作可能会导致对API服务器的调用； 调用者负责处理限速导致的错误。
 type OperationExecutor interface {
 	// AttachVolume attaches the volume to the node specified in volumeToAttach.
 	// It then updates the actual state of the world to reflect that.
@@ -910,12 +923,29 @@ func (oe *operationExecutor) VerifyControllerAttachedVolume(
 	volumeToMount VolumeToMount,
 	nodeName types.NodeName,
 	actualStateOfWorld ActualStateOfWorldAttacherUpdater) error {
+	// OperationExecutor 定义了Volume的一系列操作方法attaching, detaching, mounting, or unmounting，
+	// 这些方法在NewNestedPendingOperations中被执行，可以阻止在相同的Volume上多个操作同时被触发。
+	//
+	// 这些操作需要满足幂等性，虽然，他们依赖Volume插件的具体实现。
+	//
+	// 一旦操作成功，actualStateOfWorld 将会获得更新，表明Volume是attached/detached/mounted/unmounted。
+	//
+	// OperationExecutor 在遇到某些情况可能会失败，例如，相同UniqueVolumeName的操作正处在pending状态。
+	//
+	// 一旦operation开始，由于operation是异步执行，因此仅记录错误日志，并终止goroutine，而无需更新actualStateOfWorld。
+	//
+	// 其中一些操作可能会导致对API服务器的调用； 调用者负责处理限速导致的错误。
 	generatedOperations, err :=
 		oe.operationGenerator.GenerateVerifyControllerAttachedVolumeFunc(volumeToMount, nodeName, actualStateOfWorld)
 	if err != nil {
 		return err
 	}
 
+	/**
+	volumeToMount.VolumeName:   kubernetes.io/csi/csi.chubaofs.com^pvc-1a3e5481-a3d2-11ea-80b3-246e968d4b38
+
+	pendingOperations: nestedpendingoperations.NewNestedPendingOperations(true)
+	*/
 	return oe.pendingOperations.Run(
 		volumeToMount.VolumeName, "" /* podName */, "" /* nodeName */, generatedOperations)
 }
