@@ -247,6 +247,10 @@ type DockerOptions struct {
 
 // makePodSourceConfig creates a config.PodConfig from the given
 // KubeletConfiguration or returns an error.
+// 负责监控和加载Pod，Pod的来源支持三种方式：FileSource，HTTPSource，ApiserverSource。
+// FileSource 是kubelet从 /etc/kubernetes/manifests 目录下加载静态 Pod YAML文件，并创建Pod，同时kubelet还会监听目录的变化。
+// Kubernetes Master的 etcd, kube-apiserver,kube-controller-manager,kube-scheduler 采用StaticPod方式进行启动。
+// ApiserverSource 是从Kubernetes API Server监听Pod的变化。
 func makePodSourceConfig(kubeCfg *kubeletconfiginternal.KubeletConfiguration, kubeDeps *Dependencies, nodeName types.NodeName, bootstrapCheckpointPath string) (*config.PodConfig, error) {
 	// source of all configuration
 	cfg := config.NewPodConfig(config.PodConfigNotificationIncremental, kubeDeps.Recorder)
@@ -589,6 +593,8 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	}
 	// podManager is also responsible for keeping secretManager and configMapManager contents up-to-date.
 	mirrorPodClient := kubepod.NewBasicMirrorClient(klet.kubeClient, string(nodeName), nodeLister)
+
+	// podManager还负责使secretManager和configMapManager内容保持最新。
 	klet.podManager = kubepod.NewBasicPodManager(mirrorPodClient, secretManager, configMapManager, checkpointManager)
 
 	klet.statusManager = status.NewManager(klet.kubeClient, klet.podManager, klet)
@@ -1382,32 +1388,50 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 }
 
 // syncPod is the transaction script for the sync of a single pod.
-//
-// Arguments:
-//
-// o - the SyncPodOptions for this invocation
-//
-// The workflow is:
-// * If the pod is being created, record pod worker start latency
-// * Call generateAPIPodStatus to prepare an v1.PodStatus for the pod
-// * If the pod is being seen as running for the first time, record pod
-//   start latency
-// * Update the status of the pod in the status manager
-// * Kill the pod if it should not be running
-// * Create a mirror pod if the pod is a static pod, and does not
-//   already have a mirror pod
-// * Create the data directories for the pod if they do not exist
-// * Wait for volumes to attach/mount
-// * Fetch the pull secrets for the pod
-// * Call the container runtime's SyncPod callback
-// * Update the traffic shaping for the pod's ingress and egress limits
-//
-// If any step of this workflow errors, the error is returned, and is repeated
-// on the next syncPod call.
-//
-// This operation writes all events that are dispatched in order to provide
-// the most accurate information possible about an error situation to aid debugging.
-// Callers should not throw an event if this operation returns an error.
+////
+//// Arguments:
+////
+//// o - the SyncPodOptions for this invocation
+////
+//// The workflow is:
+//// * If the pod is being created, record pod worker start latency
+//// * Call generateAPIPodStatus to prepare an v1.PodStatus for the pod
+//// * If the pod is being seen as running for the first time, record pod
+////   start latency
+//// * Update the status of the pod in the status manager
+//// * Kill the pod if it should not be running
+//// * Create a mirror pod if the pod is a static pod, and does not
+////   already have a mirror pod
+//// * Create the data directories for the pod if they do not exist
+//// * Wait for volumes to attach/mount
+//// * Fetch the pull secrets for the pod
+//// * Call the container runtime's SyncPod callback
+//// * Update the traffic shaping for the pod's ingress and egress limits
+////
+//// If any step of this workflow errors, the error is returned, and is repeated
+//// on the next syncPod call.
+////
+//// This operation writes all events that are dispatched in order to provide
+//// the most accurate information possible about an error situation to aid debugging.
+//// Callers should not throw an event if this operation returns an error.
+
+// sync pod是用于同步单个pod的事务脚本。
+/**
+工作流程：
+1. 如果Pod正在创建，记录Pod worker的启动延迟
+2. 调用generateAPIPodStatus方法，为Pod准备一个v1.PodStatus
+3. 如果Pod是第一次运行，记录Pod的启动延迟
+4. 在状态管理器中更新Pod的状态
+5. 杀掉（Kill）不应该运行的Pod
+6. 如果Pod是静态的，且还没有一个镜像Pod，则创建一个镜像Pod
+7. 如果Pod的数据目录不存在，则创建数据目录
+8. 等待volumes的attach/mount
+9. 获取Pod的secrets （拉取的secrets）
+10. 调用容器运行时的SyncPod方法
+11. 更新Pod的进出限制的流量调整
+
+如果此工作流的任何步骤出错，则返回该错误，并在下次syncPod调用时进行重试。
+*/
 func (kl *Kubelet) syncPod(o syncPodOptions) error {
 	// pull out the required options
 	pod := o.pod
@@ -1596,6 +1620,7 @@ func (kl *Kubelet) syncPod(o syncPodOptions) error {
 	}
 
 	// Make data directories for the pod
+	// 创建Pod的数据目录
 	if err := kl.makePodDataDirs(pod); err != nil {
 		kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToMakePodDataDirectories, "error making pod data directories: %v", err)
 		klog.Errorf("Unable to make pod data directories for pod %q: %v", format.Pod(pod), err)
@@ -1605,6 +1630,7 @@ func (kl *Kubelet) syncPod(o syncPodOptions) error {
 	// Volume manager will not mount volumes for terminated pods
 	if !kl.podIsTerminated(pod) {
 		// Wait for volumes to attach/mount
+		// 挂载volume
 		if err := kl.volumeManager.WaitForAttachAndMount(pod); err != nil {
 			kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedMountVolume, "Unable to attach or mount volumes: %v", err)
 			klog.Errorf("Unable to attach or mount volumes for pod %q: %v; skipping pod", format.Pod(pod), err)
@@ -1753,7 +1779,7 @@ func (kl *Kubelet) canRunPod(pod *v1.Pod) lifecycle.PodAdmitResult {
 syncLoop是处理变更的主循环。 它从三个通道（文件，apiserver和http）监视变更，并将结果进行合并进行处理。
 如果发生任何变更，将针对期望状态和运行状态运行同步。 如果没有发生任何变化，则将在每个同步周期内同步上一个已知的期望状态。
 该方法为死循环，不会终止，直到kubelet进程结束。
- */
+*/
 func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHandler) {
 	klog.Info("Starting kubelet main sync loop.")
 	// The syncTicker wakes up kubelet to checks if there are any pod workers
@@ -1996,15 +2022,20 @@ func (kl *Kubelet) handleMirrorPod(mirrorPod *v1.Pod, start time.Time) {
 
 // HandlePodAdditions is the callback in SyncHandler for pods being added from
 // a config source.
+// 处理从source获取的新增的Pod
 func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 	start := kl.clock.Now()
+	// 按Pod的创建时间进行排序
 	sort.Sort(sliceutils.PodsByCreationTime(pods))
+
 	for _, pod := range pods {
 		existingPods := kl.podManager.GetPods()
 		// Always add the pod to the pod manager. Kubelet relies on the pod
 		// manager as the source of truth for the desired state. If a pod does
 		// not exist in the pod manager, it means that it has been deleted in
 		// the apiserver and no action (other than cleanup) is required.
+		// 始终将pod添加到pod管理器。Kubelet依赖pod管理器作为理想状态的真相来源。
+		// 如果pod管理器中不存在pod，则表示已在apiserver中删除该pod，无需执行任何操作（清除操作除外）。
 		kl.podManager.AddPod(pod)
 
 		if kubetypes.IsMirrorPod(pod) {

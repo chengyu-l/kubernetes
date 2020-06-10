@@ -263,6 +263,11 @@ func (c *cacheBasedManager) UnregisterPod(pod *v1.Pod) {
 // - every GetObject() call tries to fetch the value from local cache; if it is
 //   not there, invalidated or too old, we fetch it from apiserver and refresh the
 //   value in cache; otherwise it is just fetched from cache
+//
+// NewCacheBasedManager创建一个管理器，用于保存注册pod所需的所有对象的缓存。
+//它实现以下逻辑：
+//-每当创建或更新pod时，所有被引用对象的缓存版本都将失效
+//-每个GetObject（）调用都试图从本地缓存中获取该值；如果不存在、无效或太旧，则从apiserver中获取该值并刷新缓存中的值；否则仅从缓存中获取该值
 func NewCacheBasedManager(objectStore Store, getReferencedObjects func(*v1.Pod) sets.String) Manager {
 	return &cacheBasedManager{
 		objectStore:          objectStore,

@@ -206,6 +206,8 @@ func (pm *basicManager) updatePodsInternal(pods ...*v1.Pod) {
 		podFullName := kubecontainer.GetPodFullName(pod)
 		// This logic relies on a static pod and its mirror to have the same name.
 		// It is safe to type convert here due to the IsMirrorPod guard.
+
+		// 这个逻辑依赖于一个静态Pod和它的镜像具有相同的名称。因为IsMirrorPod担保，在这里的类型转换是安全的。
 		if kubetypes.IsMirrorPod(pod) {
 			mirrorPodUID := kubetypes.MirrorPodUID(pod.UID)
 			pm.mirrorPodByUID[mirrorPodUID] = pod

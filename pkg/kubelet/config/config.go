@@ -168,6 +168,7 @@ func newPodStorage(updates chan<- kubetypes.PodUpdate, mode PodConfigNotificatio
 // Merge normalizes a set of incoming changes from different sources into a map of all Pods
 // and ensures that redundant changes are filtered out, and then pushes zero or more minimal
 // updates onto the update channel.  Ensures that updates are delivered in order.
+// Merge将来自不同源的Pod变化进行规范化，并确保多余的更改被过滤掉了，然后将零个或多个最小更新推送到更新通道。确保按顺序交付更新。
 func (s *podStorage) Merge(source string, change interface{}) error {
 	s.updateLock.Lock()
 	defer s.updateLock.Unlock()

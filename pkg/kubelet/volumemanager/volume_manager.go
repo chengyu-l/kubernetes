@@ -77,6 +77,12 @@ const (
 	// request to the pod).
 	// Value is slightly offset from 2 minutes to make timeouts due to this
 	// constant recognizable.
+	/**
+	potattachandmountmoutout是WaitForAttachAndMount调用等待指定pod中的所有卷连接和装载的最长时间。
+	尽管云操作可能需要几分钟才能完成，但我们将超时设置为2分钟，因为kubelet将在下一次同步迭代中重试。
+	这将释放pod的关联goroutine，以便在需要时处理更新的更新（例如，对pod的删除请求）。
+	由于此常量可识别，值从2分钟稍微偏移以超时
+	 */
 	podAttachAndMountTimeout = 2*time.Minute + 3*time.Second
 
 	// podAttachAndMountRetryInterval is the amount of time the GetVolumesForPod
@@ -380,8 +386,18 @@ func (vm *volumeManager) WaitForAttachAndMount(pod *v1.Pod) error {
 	// Some pods expect to have Setup called over and over again to update.
 	// Remount plugins for which this is true. (Atomically updating volumes,
 	// like Downward API, depend on this to update the contents of the volume).
+	//
+	// 一些pod希望安装程序一次又一次地调用以更新。
+	// 重新安装插件。（原子更新卷，如向下的API，依赖于此更新卷的内容）。
 	vm.desiredStateOfWorldPopulator.ReprocessPod(uniquePodName)
 
+
+	/**
+	potattachandmountmoutout是WaitForAttachAndMount调用等待指定pod中的所有卷连接和装载的最长时间。
+	尽管云操作可能需要几分钟才能完成，但我们将超时设置为2分钟，因为kubelet将在下一次同步迭代中重试。
+	这将释放pod的关联goroutine，以便在需要时处理更新的更新（例如，对pod的删除请求）。
+	由于此常量可识别，值从2分钟稍微偏移以超时
+	*/
 	err := wait.PollImmediate(
 		podAttachAndMountRetryInterval,
 		podAttachAndMountTimeout,
