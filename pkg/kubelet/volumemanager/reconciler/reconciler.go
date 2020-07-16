@@ -270,6 +270,14 @@ func (rc *reconciler) mountAttachVolumes() {
 				remountingLogStr = "Volume is already mounted to pod, but remount was requested."
 			}
 			klog.V(4).Infof(volumeToMount.GenerateMsgDetailed("Starting operationExecutor.MountVolume", remountingLogStr))
+
+			/**
+			waitForAttachTimeout是操作执行程序的最长时间。Mount调用将等待连接卷。 大约需要10分钟，
+			因为在某些情况下，某些批量插件需要执行几分钟的附加操作才能完成。 在等待该操作的同时，
+			它仅阻止同一设备上的其他操作，而不会影响其他设备
+
+			 waitForAttachTimeout = 10 * time.Minute
+			*/
 			err := rc.operationExecutor.MountVolume(
 				rc.waitForAttachTimeout,
 				volumeToMount.VolumeToMount,
